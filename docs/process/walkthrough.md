@@ -46,3 +46,39 @@ The tests covered:
 - [x] Basic text extraction correctness.
 - [x] Handling of empty/whitespace-only pages (skipped).
 - [x] Error handling for missing files.
+
+# Walkthrough - Issue #3: HTML Content Extraction
+
+I have completed the implementation of the HTML content extraction module.
+
+## Changes Made
+
+### 1. HTML Loader
+Implemented `src/kb/ingestion/html_loader.py` using `BeautifulSoup`.
+- **Text Extraction**: Extracts clean text while removing scripts, styles, nav, and footer elements.
+- **Metadata**: Captures `title` and `source`.
+- **Return Format**: Currently returns a single `Document` per file (chunking will fail later if too large, but compliant with current scope).
+
+### 2. Dependencies
+- Installed `beautifulsoup4` and `requests`.
+
+## Verification Results
+
+### Automated Tests
+I implemented `tests/test_html_loader.py` and ran it.
+
+```bash
+python -m pytest tests/
+```
+
+**Output:**
+```
+tests\test_html_loader.py ..                                             [ 40%]
+tests\test_pdf_loader.py ...                                             [100%]
+============================== 5 passed in 0.29s ==============================
+```
+
+The tests covered:
+- [x] Basic HTML tag stripping (h1, p, div).
+- [x] Removal of unwanted tags (script, style).
+- [x] Metadata extraction verification.
