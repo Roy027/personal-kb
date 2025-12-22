@@ -8,7 +8,7 @@
     - [x] Issue #5：Embedding + 向量索引 <!-- id: 5 -->
     - [x] Issue #6：CLI 查询返回原文片段 <!-- id: 6 -->
 - [ ] **Milestone 2: RAG + 强制引用** <!-- id: 7 -->
-    - [/] Issue #7：检索 + rerank pipeline <!-- id: 8 -->
+    - [x] Issue #7：检索 + rerank pipeline <!-- id: 8 -->
     - [ ] Issue #8：RAG prompt（强制引用） <!-- id: 9 -->
     - [ ] Issue #9：LLM 本地推理接口 <!-- id: 10 -->
     - [ ] Issue #10：拒答机制（无证据） <!-- id: 11 -->

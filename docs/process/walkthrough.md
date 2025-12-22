@@ -197,6 +197,42 @@ This is a test PDF for the Personal Knowledge Base....
 - [x] System correctly ingested PDF.
 - [x] System correctly retrieved content based on semantic similarity.
 
+# Walkthrough - Issue #7: Retrieval + Rerank Pipeline
+
+I have implemented a hybrid retrieval pipeline that combines vector similarity with cross-encoder reranking.
+
+## Changes Made
+
+### 1. Reranker Implementation
+- Created `Reranker` class in `src/kb/retrieve/retriever.py`.
+- Uses `BAAI/bge-reranker-large` to score Query-Document pairs.
+- Sorts results by relevance score and keeps the top-N.
+
+### 2. Retriever Orchestration
+- Created `Retriever` class as a single interface.
+- **Workflow**:
+    1. Initial Recall: FAISS search retrieves Top-K (e.g., 10) results.
+    2. Precision Reranking: Cross-Encoder scores the 10 results.
+    3. Final Selection: Returns top-N (e.g., 3) highest scoring chunks.
+
+## Verification Results
+
+### Automated Tests
+Ran `tests/test_retriever.py` with mocked models.
+
+```bash
+conda run -n personal-kb python -m pytest tests/test_retriever.py
+```
+
+**Output:**
+```
+tests\test_retriever.py ..                                               [100%]
+======================= 2 passed, 3 warnings in 17.40s ========================
+```
+- [x] Vector search integrates correctly with reranking steps.
+- [x] Reranker correctly sorts documents by mock scores.
+- [x] Hybrid pipeline returns the most relevant document (even if it wasn't the top 1 in vector search).
+
 # Walkthrough - Infrastructure: Environment Migration
 
 I have migrated the project from using the global Miniforge `base` environment to a dedicated, isolated Conda environment.
