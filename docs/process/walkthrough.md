@@ -82,3 +82,41 @@ The tests covered:
 - [x] Basic HTML tag stripping (h1, p, div).
 - [x] Removal of unwanted tags (script, style).
 - [x] Metadata extraction verification.
+
+# Walkthrough - Issue #4: Chunk Strategy
+
+I have implemented the Chunking strategy to split large documents into token-limited segments suitable for embedding.
+
+## Changes Made
+
+### 1. Chunker Implementation
+Created `src/kb/chunking/chunker.py`.
+- **Algorithm**: Recursive Character split optimized for tokens.
+- **Tokenizer**: Uses `tiktoken` (cl100k_base) for accurate token counting.
+- **Strategy**:
+    1. Split by `\n\n` (Paragraphs) first.
+    2. Split by `\n` (Lines) if needed.
+    3. Split by ` ` (Words) if needed.
+    4. Recursively merges chunks to fit `chunk_size` (default 800) with `chunk_overlap` (default 100).
+- **Metadata**: Preserves original metadata and adds `chunk_index` and `chunk_id`.
+
+## Verification Results
+
+### Automated Tests
+Created and ran `tests/test_chunking.py`.
+
+```bash
+python -m pytest tests/test_chunking.py
+```
+
+**Output:**
+```
+tests\test_chunking.py ....                                              [100%]
+============================== 4 passed in 0.20s ==============================
+```
+
+The tests covered:
+- [x] Small documents remaining intact.
+- [x] Large documents being split correctly.
+- [x] Overlap logic functioning (content duplication at boundaries).
+- [x] Paragraph preservation preference.
