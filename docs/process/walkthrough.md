@@ -120,3 +120,41 @@ The tests covered:
 - [x] Large documents being split correctly.
 - [x] Overlap logic functioning (content duplication at boundaries).
 - [x] Paragraph preservation preference.
+
+# Walkthrough - Issue #5: Embedding + Vector Store
+
+I have implemented the generic Embedding interface and FAISS-based Vector Store.
+
+## Changes Made
+
+### 1. Dependencies
+Installed `faiss-cpu`, `sentence-transformers`, `numpy`, and `pandas`.
+
+### 2. Implementation
+Created `src/kb/index/vector_store.py`.
+- **Embedder**: Wrapper around `SentenceTransformer` (defaults to `BAAI/bge-m3`).
+- **VectorStore**:
+    - Uses `faiss.IndexFlatIP` (Inner Product) for fast cosine similarity search (assuming normalized embeddings).
+    - Persists metadata alongside index using `pickle`.
+    - Supports `save()`, `load()`, `add_documents()`, and `search()`.
+
+## Verification Results
+
+### Automated Tests
+Created `tests/test_vector_store.py` with mocked embeddings to avoid large model downloads during CI/test.
+
+```bash
+python -m pytest tests/test_vector_store.py
+```
+
+**Output:**
+```
+tests\test_vector_store.py ..                                            [100%]
+======================= 2 passed, 3 warnings in 10.18s ========================
+```
+
+The tests covered:
+- [x] Index creation and metadata storage.
+- [x] Adding documents to FAISS.
+- [x] Searching and retrieving correct metadata.
+- [x] Persistence (Safe/Load) correctness.
