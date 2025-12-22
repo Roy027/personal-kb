@@ -14,9 +14,12 @@ env.bak/
 venv.bak/
 
 # Project
-data/processed/
-data/index/
-data/cache/
+data/processed/*
+!data/processed/.gitkeep
+data/index/*
+!data/index/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
 test_results.txt
 
 # OS
