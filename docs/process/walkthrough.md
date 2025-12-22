@@ -196,3 +196,24 @@ This is a test PDF for the Personal Knowledge Base....
 ```
 - [x] System correctly ingested PDF.
 - [x] System correctly retrieved content based on semantic similarity.
+
+# Walkthrough - Infrastructure: Environment Migration
+
+I have migrated the project from using the global Miniforge `base` environment to a dedicated, isolated Conda environment.
+
+## Changes Made
+
+### 1. Environment Creation
+Created a new Conda environment named `personal-kb` with **Python 3.11**.
+- **Reasoning**: To ensure dependency isolation and avoid corrupting the system's base environment.
+
+### 2. Dependency Management
+- All project dependencies (Streamlit, FAISS, PyTorch, etc.) were installed into the `personal-kb` environment.
+- Cleaned up the `base` environment by removing the libraries mistakenly installed there earlier.
+- Re-stabilized the `base` environment by ensuring essential libraries like `requests` were re-installed.
+
+### 3. Usage Pattern
+From now on, all project commands should be run using:
+```bash
+conda run -n personal-kb <command>
+```

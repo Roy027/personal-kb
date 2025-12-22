@@ -1,31 +1,33 @@
-# Issue #2: PDF Text Extraction Module
+# Issue #7: Retrieval + Rerank Pipeline
 
 ## Goal
-Implement a robust PDF text extraction module that reads PDF files and converts them into a unified `Document` format for the knowledge base.
+Implement a robust retrieval pipeline that combines vector search (Top-K) with a Cross-Encoder Reranker to improve result relevance.
 
 ## Proposed Changes
 
-### 1. Document Schema
-Create `src/kb/schema.py` to define the unified data structure.
-- `Document`: Represents a file or a part of a file.
-    - `content`: (str) The text content.
-    - `metadata`: (dict) source, page_number, file_path, etc.
+### 1. Retriever Class
+Create `src/kb/retrieve/retriever.py`.
+- **Class**: `Retriever`
+- **Components**:
+    - `VectorStore` (existing): For initial broad recall (Top-K).
+    - `Reranker` (new): For precise scoring of (Query, Document) pairs.
+- **Method**: `retrieve(query: str, top_k: int = 5, top_n: int = 3) -> List[Document]`
+    1. Get `top_k` results from Vector Store.
+    2. Pass specific (Query, Document) pairs to Reranker.
+    3. Sort by new score.
+    4. Return `top_n` results.
 
-### 2. PDF Loader
-Create `src/kb/ingestion/pdf_loader.py`.
-- Function/Class to load PDF.
-- Use `pypdf` as per dependencies.
-- Extract text page by page to preserve page numbers in metadata.
-- Clean text (remove excessive whitespace).
+### 2. Reranker Implementation
+- Use `sentence-transformers` CrossEncoder or HuggingFace `AutoModelForSequenceClassification`.
+- Model: `BAAI/bge-reranker-large` (as per PRD).
+- **Optimization**: Load model only when needed or keep it loaded if memory permits.
 
-### 3. Testing
-Create `tests/test_pdf_loader.py`.
-- Generate a sample PDF on the fly or use a mock.
-- Verify text extraction and metadata correctness.
+### 3. CLI Update
+- Update `scripts/query.py` to use the new `Retriever` class instead of raw `VectorStore` search.
+- Add `--rerank` flag (default True).
 
 ## Verification Plan
 ### Automated Tests
-- Run `pytest tests/test_pdf_loader.py` covering:
-    - Single page extraction
-    - Multi-page extraction
-    - Metadata verification (page numbers, source path)
+- `tests/test_retriever.py`:
+    - Mock Reranker to verify filtering/sorting logic.
+    - Test integration with VectorStore.
