@@ -158,3 +158,41 @@ The tests covered:
 - [x] Adding documents to FAISS.
 - [x] Searching and retrieving correct metadata.
 - [x] Persistence (Safe/Load) correctness.
+
+# Walkthrough - Issue #6: CLI Scripts (Ingest & Query)
+
+I have implemented the CLI scripts to allow manual ingestion and querying of the knowledge base.
+
+## Changes Made
+
+### 1. Ingestion Script (`scripts/ingest.py`)
+- Walks through `data/raw`.
+- Detects file type and selects appropriate loader (PDF/HTML).
+- Chunks documents.
+- Generates embeddings.
+- Saves index to `data/index`.
+
+### 2. Query Script (`scripts/query.py`)
+- Loads index from `data/index`.
+- Embeds user query.
+- Performs vector search.
+- Prints top-k results with metadata and content preview.
+
+## Verification Results
+Performed an end-to-end manual test with a dummy PDF.
+1. Created `data/raw/test.pdf`.
+2. Ran `python scripts/ingest.py --reset`.
+3. Ran `python scripts/query.py "personal knowledge base"`.
+
+**Result:**
+```
+Query: personal knowledge base
+
+--- Result 1 ---
+Source: test.pdf
+Page/Chunk: 1 / 0
+Content:
+This is a test PDF for the Personal Knowledge Base....
+```
+- [x] System correctly ingested PDF.
+- [x] System correctly retrieved content based on semantic similarity.
