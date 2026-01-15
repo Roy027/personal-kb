@@ -5,7 +5,7 @@ I have completed the implementation of the PDF text extraction module. This modu
 ## Changes Made
 
 ### 1. Document Schema
-Created [schema.py](file:///c:/Users/ruoyu.dai/OneDrive%20-%20%E5%A4%A9%E5%90%88%E5%85%89%E8%83%BD%E8%82%A1%E4%BB%BD%E6%9C%89%E9%99%90%E5%85%AC%E5%8F%B8/Work/03_Projects/17_RAG_%E7%9F%A5%E8%AF%86%E5%BA%93/personal-kb/src/kb/schema.py) to unify data handling across different loaders.
+Created `src/kb/schema.py` to unify data handling across different loaders.
 
 ```python
 @dataclass
@@ -15,7 +15,7 @@ class Document:
 ```
 
 ### 2. PDF Loader
-Implemented [pdf_loader.py](file:///c:/Users/ruoyu.dai/OneDrive%20-%20%E5%A4%A9%E5%90%88%E5%85%89%E8%83%BD%E8%82%A1%E4%BB%BD%E6%9C%89%E9%99%90%E5%85%AC%E5%8F%B8/Work/03_Projects/17_RAG_%E7%9F%A5%E8%AF%86%E5%BA%93/personal-kb/src/kb/ingestion/pdf_loader.py) using `pypdf`.
+Implemented `src/kb/ingestion/pdf_loader.py` using `pypdf`.
 - **Page-by-page extraction**: Each page becomes a separate `Document` object initially.
 - **Metadata**: Includes `source`, `page_number`, and `total_pages`.
 - **Cleaning**: Basic whitespace normalization.
@@ -214,6 +214,7 @@ I have implemented a hybrid retrieval pipeline that combines vector similarity w
     1. Initial Recall: FAISS search retrieves Top-K (e.g., 10) results.
     2. Precision Reranking: Cross-Encoder scores the 10 results.
     3. Final Selection: Returns top-N (e.g., 3) highest scoring chunks.
+    4. **File Filtering** (New): Added support for `file_filters` argument to only retrieve documents from specific files.
 
 ## Verification Results
 
@@ -221,7 +222,7 @@ I have implemented a hybrid retrieval pipeline that combines vector similarity w
 Ran `tests/test_retriever.py` with mocked models.
 
 ```bash
-conda run -n personal-kb python -m pytest tests/test_retriever.py
+conda run -n local-kb python -m pytest tests/test_retriever.py
 ```
 
 **Output:**
@@ -231,25 +232,58 @@ tests\test_retriever.py ..                                               [100%]
 ```
 - [x] Vector search integrates correctly with reranking steps.
 - [x] Reranker correctly sorts documents by mock scores.
-- [x] Hybrid pipeline returns the most relevant document (even if it wasn't the top 1 in vector search).
+- [x] Hybrid pipeline returns the most relevant document.
 
-# Walkthrough - Infrastructure: Environment Migration
+# Walkthrough - Issue #8 & #9: Local LLM + RAG Pipeline
 
-I have migrated the project from using the global Miniforge `base` environment to a dedicated, isolated Conda environment.
+I have integrated the local LLM (Ollama) and built strict RAG prompting logic.
 
 ## Changes Made
 
-### 1. Environment Creation
-Created a new Conda environment named `personal-kb` with **Python 3.11**.
-- **Reasoning**: To ensure dependency isolation and avoid corrupting the system's base environment.
+### 1. Local LLM Integration
+- Implemented `src/kb/rag/llm.py` wrapping `ollama` Python client.
+- Defaults to model `qwen3:8b` (or `qwen2.5:14b`).
+- Includes a simple `generate()` method adhering to system prompts.
 
-### 2. Dependency Management
-- All project dependencies (Streamlit, FAISS, PyTorch, etc.) were installed into the `personal-kb` environment.
-- Cleaned up the `base` environment by removing the libraries mistakenly installed there earlier.
-- Re-stabilized the `base` environment by ensuring essential libraries like `requests` were re-installed.
+### 2. RAG Prompt Engineering
+- Created `src/kb/rag/prompt.py`.
+- **System Prompt**: Enforces STRICT citation rules and refusal to hallucinate.
+- **Context Format**: `[Document N] (Source: filename, Page: X, Chunk: Y)` for precise location tracking.
+- **Validation**: Added logic to prefer the user's language (e.g., Chinese query -> Chinese answer).
 
-### 3. Usage Pattern
-From now on, all project commands should be run using:
-```bash
-conda run -n personal-kb <command>
-```
+### 3. Answer Engine
+- Created `src/kb/rag/answer.py`.
+- Connects Retriever and LLM.
+- **Flow**: Query -> Retrieve (w/ Filter) -> Build Prompt -> LLM Generation -> Answer + Sources.
+
+## Verification Results
+- Ran `scripts/ask.py "What is the secret code?"`.
+- System successfully retrieved the snippet from HTML test data.
+- Generated answer: "... is Project-Blue-Sky..." with correct citation `[Source: rag_test.html]`.
+
+# Walkthrough - Issue #11: Streamlit UI (Web Interface)
+
+I have built a complete web-based user interface using Streamlit.
+
+## Changes Made
+
+### 1. UI Structure (`src/kb/ui/app.py`)
+- **Dual Tab Design**: 
+    - `💬 智能问答` (Chat): Main interface for Q&A.
+    - `🗃️ 知识库管理` (Knowledge Base): Manage files, view stats, and upload new documents.
+- **Sidebar Settings**: 
+    - Model selection (Qwen/Llama).
+    - Retrieval parameters (Top-K / Top-N).
+    - **Dynamic File Filter**: A table in the sidebar to tick/untick specific documents for search scope.
+
+### 2. Features
+- **File Upload**: Direct drag-and-drop ingestion of PDF/HTML files via the web UI.
+- **Progress Tracking**: Real-time progress bars for ingestion steps (Loading -> Chunking -> Embedding).
+- **Interactive Citations**: Chat responses include expandable "Looks Sources" section showing exact text matches and relevance scores.
+- **Localization**: Full Chinese UI support.
+
+## Verification Results
+- Launched via `streamlit run src/kb/ui/app.py`.
+- Successfully uploaded a new PDF via browser.
+- Successfully filtered search scope to a specific document.
+- Verified Chinese Q&A and Citations are rendered correctly.
