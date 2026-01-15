@@ -1,8 +1,13 @@
 import streamlit as st
+import os
 import time
+import pandas as pd
 from typing import List
 from src.kb.rag.answer import AnswerEngine
 from src.kb.schema import Document
+from src.kb.chunking.chunker import Chunker
+from src.kb.ingestion.pdf_loader import load_pdf
+from src.kb.ingestion.html_loader import load_html
 
 # Page Config
 st.set_page_config(
@@ -15,9 +20,6 @@ st.set_page_config(
 # --- CSS Styling ---
 st.markdown("""
 <style>
-    .reportview-container {
-        background: #f0f2f6;
-    }
     .chat-message {
         padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex
     }
@@ -30,89 +32,180 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Helpers ---
+
+LOADERS = {
+    ".pdf": load_pdf,
+    ".html": load_html,
+    ".htm": load_html
+}
+
+def save_uploaded_file(uploaded_file):
+    save_dir = "./data/raw"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    file_path = os.path.join(save_dir, uploaded_file.name)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return file_path
+
+def ingest_file(file_path, engine):
+    """
+    Ingests a single file into the active vector store.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext not in LOADERS:
+        st.error(f"Unsupported file format: {ext}")
+        return
+
+    # 1. Load (加载)
+    status = st.empty()
+    progress = st.progress(0)
+    
+    status.write(f"📄 正在加载文档：{os.path.basename(file_path)}...")
+    loader = LOADERS[ext]
+    documents = loader(file_path)
+    progress.progress(30)
+    
+    if not documents:
+        st.warning("未检测到文本内容。")
+        return
+
+    # 2. Chunk (切分)
+    status.write(f"✂️ 正在切分 {len(documents)} 页内容...")
+    chunker = Chunker()
+    chunked_docs = chunker.split_documents(documents)
+    progress.progress(60)
+
+    # 3. Embed & Index (向量化)
+    status.write(f"🧠 正在生成向量 (共 {len(chunked_docs)} 个切片，CPU 模式请稍候)...")
+    
+    # Access internal components from engine
+    # structure: engine -> retriever -> embedder/vector_store
+    embedder = engine.retriever.embedder
+    vector_store = engine.retriever.vector_store
+    
+    embeddings = embedder.embed_documents(chunked_docs)
+    progress.progress(90)
+    
+    status.write("💾 保存索引中...")
+    vector_store.add_documents(chunked_docs, embeddings)
+    vector_store.save()
+    progress.progress(100)
+    
+    status.success(f"成功处理文档：{os.path.basename(file_path)}！")
+    time.sleep(1)
+    status.empty()
+    progress.empty()
+
+@st.cache_resource(show_spinner="正在加载 RAG 引擎...")
+def get_engine(model_name: str):
+    return AnswerEngine(index_path="./data/index", llm_model=model_name)
+
 # --- Sidebar ---
 with st.sidebar:
-    st.title("⚙️ RAG Settings")
+    st.title("⚙️ 系统设置")
     
-    st.markdown("### Model Configuration")
-    llm_model = st.selectbox("LLM Model", ["qwen3:8b", "llama3:8b", "mistral"], index=0)
+    st.markdown("### 模型配置")
+    llm_model = st.selectbox("LLM 模型", ["qwen3:8b", "llama3:8b"], index=0)
     
-    st.markdown("### Retrieval Parameters")
-    top_k = st.slider("Recall Top-K (Vector Search)", 5, 50, 20)
-    top_n = st.slider("Rerank Top-N (Final Context)", 1, 10, 3)
+    st.markdown("### 检索参数")
+    top_k = st.slider("初筛数量 (Recall Top-K)", 5, 50, 20)
+    top_n = st.slider("精排数量 (Rerank Top-N)", 1, 10, 3)
     
     st.markdown("---")
-    if st.button("Clear Chat History", type="primary"):
+    if st.button("清空对话记录", type="primary"):
         st.session_state.messages = []
         st.rerun()
         
     st.markdown("---")
-    st.markdown("v0.1.0 | Local Knowledge Base")
+    st.caption("v0.2.1 | Local Knowledge Base")
 
-# --- Logic ---
-
-@st.cache_resource(show_spinner="Loading optimized RAG engine...")
-def get_engine(model_name: str):
-    return AnswerEngine(index_path="./data/index", llm_model=model_name)
-
+# --- Initial Load ---
 try:
     engine = get_engine(llm_model)
-    st.success("Engine Loaded Successfully!", icon="✅")
 except Exception as e:
-    st.error(f"Failed to load engine: {e}")
+    st.error(f"引擎加载失败: {e}")
     st.stop()
 
-# Initialize Chat History
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
 # --- Main Interface ---
+st.title("📚 本地知识库助手")
 
-st.title("📚 Local Knowledge Base Assistant")
-st.markdown("Ask questions about your local documents. Fully private, 100% offline.")
+tab1, tab2 = st.tabs(["💬 智能问答", "🗃️ 知识库管理"])
 
-# Display Chat History
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if "sources" in msg and msg["sources"]:
-            with st.expander("📚 View Sources & Evidence"):
-                for i, doc in enumerate(msg["sources"], 1):
-                    source = doc.metadata.get("source", "Unknown")
-                    page = doc.metadata.get("page_number", "N/A")
-                    score = doc.metadata.get("rerank_score", 0.0)
-                    
-                    st.markdown(f"**{i}. {source}** (Page: {page}, Score: {score:.4f})")
-                    st.text(doc.content)
+# === TAB 1: CHAT ===
+with tab1:
+    # Initialize Msg
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-# Input
-if prompt := st.chat_input("What do you want to know?"):
-    # Add user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Display History
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if "sources" in msg and msg["sources"]:
+                with st.expander("📚 查看引用来源"):
+                    for i, doc in enumerate(msg["sources"], 1):
+                        source = os.path.basename(doc.metadata.get("source", "未知来源"))
+                        page = doc.metadata.get("page_number", "-")
+                        score = doc.metadata.get("rerank_score", 0.0)
+                        st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        st.caption(doc.content[:300] + "...")
 
-    # Generate Response
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        
-        with st.spinner("Thinking & Retrieving..."):
-            answer, sources = engine.answer(prompt, top_k=top_k, top_n=top_n)
+    # Chat Input
+    if prompt := st.chat_input("请输入你的问题..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("正在思考与检索..."):
+                answer, sources = engine.answer(prompt, top_k=top_k, top_n=top_n)
             
-        # Simulate typing effect (optional, or just stream if supported later)
-        message_placeholder.markdown(answer)
+            st.markdown(answer)
+            
+            if sources:
+                with st.expander("📚 查看引用来源"):
+                    for i, doc in enumerate(sources, 1):
+                        source = os.path.basename(doc.metadata.get("source", "未知来源"))
+                        page = doc.metadata.get("page_number", "-")
+                        score = doc.metadata.get("rerank_score", 0.0)
+                        st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        st.caption(doc.content)
+            
+            st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
+
+# === TAB 2: KNOWLEDGE BASE ===
+with tab2:
+    st.header("文档管理")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("📂 已收录文档")
+        # Get file stats
+        if hasattr(engine.retriever.vector_store, 'get_indexed_files'):
+            files_data = engine.retriever.vector_store.get_indexed_files()
+            if files_data:
+                df = pd.DataFrame(files_data).rename(columns={"filename": "文件名", "chunks": "切片数量"})
+                st.dataframe(df, use_container_width=True)
+                st.caption(f"当前总文档数: {len(df)}")
+            else:
+                st.info("暂无已索引的文档。")
+        else:
+            st.warning("VectorStore 未实现 'get_indexed_files' 功能。")
+
+    with col2:
+        st.subheader("⬆️ 上传新文档")
+        uploaded_file = st.file_uploader("选择 PDF 或 HTML 文件", type=["pdf", "html"])
         
-        # Show sources
-        if sources:
-            with st.expander("📚 View Sources & Evidence"):
-                for i, doc in enumerate(sources, 1):
-                    source = doc.metadata.get("source", "Unknown")
-                    page = doc.metadata.get("page_number", "N/A")
-                    score = doc.metadata.get("rerank_score", 0.0)
-                    
-                    st.markdown(f"**{i}. {source}** (Page: {page}, Score: {score:.4f})")
-                    st.caption(f"Score: {score:.4f}")
-                    st.text(doc.content)
-        
-        st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
+        if uploaded_file:
+            if st.button("开始导入", type="primary"):
+                try:
+                    # Save
+                    file_path = save_uploaded_file(uploaded_file)
+                    # Ingest
+                    ingest_file(file_path, engine)
+                    st.rerun() # Refresh list
+                except Exception as e:
+                    st.error(f"导入失败: {e}")
