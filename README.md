@@ -157,7 +157,7 @@
 
 * Embedding：`bge-m3`
 * Reranker：`bge-reranker-large`
-* LLM：Qwen2.5 / LLaMA 3.x（8B–14B）
+* LLM：Qwen3 / LLaMA 3.x（8B–14B）
 
 ### 向量库
 
@@ -255,6 +255,12 @@ local-kb/
 * Issue #12：metadata filter（文件夹 / 标签）
 * Issue #13：增量导入机制
 * Issue #14：日志与调试信息
+
+### 🟣 Future Features (Backlog)
+
+* **Issue #15: Support OCR for Scanned PDFs** (Pending)
+    - Integrate `paddleocr` or `tesseract` to handle image-based PDFs.
+    - Add logic to detect "empty text" pages and fallback to OCR.
 
 ---
 
