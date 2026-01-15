@@ -1,4 +1,4 @@
-# 📘 Personal Local Knowledge Base（RAG）
+# 📘 Local Local Knowledge Base（RAG）
 
 **PRD v0.1（冻结版）**
 
@@ -172,7 +172,7 @@
 ## 6️⃣ 项目目录结构（最终版）
 
 ```
-personal-kb/
+local-kb/
 ├── README.md
 ├── pyproject.toml
 ├── .env.example
