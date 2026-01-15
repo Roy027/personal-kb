@@ -287,3 +287,32 @@ I have built a complete web-based user interface using Streamlit.
 - Successfully uploaded a new PDF via browser.
 - Successfully filtered search scope to a specific document.
 - Verified Chinese Q&A and Citations are rendered correctly.
+
+# Walkthrough - Feature: Dynamic File Filtering (v0.3.0)
+
+I have implemented a dynamic document filtering system allowing users to select/deselect specific files for retrieval directly from the UI.
+
+## Changes Made
+
+### 1. Vector Store
+- Updated `src/kb/index/vector_store.py`:
+    - Added `get_indexed_files()` method to return a summary of indexed documents (filename and chunk count).
+
+### 2. Retrieval Pipeline
+- Updated `src/kb/retrieve/retriever.py`:
+    - Added `file_filters` argument to `retrieve()` method.
+    - Implemented post-retrieval filtering logic: If filters are applied, initial search candidates are expanded (5x Top-K), then filtered by filename, then trimmed back to Top-K.
+- Updated `src/kb/rag/answer.py`: passed `file_filters` from `answer()` down to `retrieve()`.
+
+### 3. UI Implementation
+- Updated `src/kb/ui/app.py`:
+    - Added a **Knowledge Base Scope** section in the sidebar.
+    - Uses `st.data_editor` to show a list of files with checkboxes (default checked).
+    - Preserves selection state across reruns using `st.session_state`.
+    - Passes the selected file list to the RAG engine for every query.
+    - Added `sys.path` modification to resolve module import issues when running via `streamlit run`.
+
+## Verification Results
+- Verified that unchecking a file in the sidebar excludes its content from RAG answers.
+- Verified that "Select All" (default) works as expected.
+- Verified file stats (chunk counts) are displayed correctly in the selector.

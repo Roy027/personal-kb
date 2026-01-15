@@ -39,10 +39,26 @@ class Retriever:
         self.vector_store = vector_store
         self.reranker = reranker
         
-    def retrieve(self, query: str, top_k: int = 10, top_n: int = 3, use_rerank: bool = True) -> List[Document]:
+    def retrieve(self, query: str, top_k: int = 10, top_n: int = 3, use_rerank: bool = True, file_filters: List[str] = None) -> List[Document]:
         # 1. Vector Search (Recall)
+        # If filters are present, fetch more candidates to allow for post-filtering
+        search_k = top_k * 5 if file_filters is not None else top_k
+        
         query_emb = self.embedder.embed_query(query)
-        initial_results = self.vector_store.search(query_emb, top_k=top_k)
+        initial_results = self.vector_store.search(query_emb, top_k=search_k)
+        
+        # Apply Logic Filter
+        if file_filters is not None:
+            import os
+            filtered_results = []
+            for doc in initial_results:
+                # Compare basenames
+                doc_name = os.path.basename(doc.metadata.get("source", ""))
+                if doc_name in file_filters:
+                    filtered_results.append(doc)
+            
+            # Trim back to requested top_k
+            initial_results = filtered_results[:top_k]
         
         if not use_rerank or not self.reranker or not initial_results:
             return initial_results[:top_n]

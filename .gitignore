@@ -14,6 +14,8 @@ env.bak/
 venv.bak/
 
 # Project
+data/raw/*
+!data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
 data/index/*

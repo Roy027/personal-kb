@@ -80,6 +80,16 @@ class VectorStore:
                 
         return results
 
+    def get_indexed_files(self) -> List[dict]:
+        """Returns a summary of indexed files."""
+        files = {}
+        for doc in self.metadata:
+            source = os.path.basename(doc.metadata.get("source", "Unknown"))
+            if source not in files:
+                files[source] = {"chunks": 0}
+            files[source]["chunks"] += 1
+        return [{"filename": k, "chunks": v} for k, v in files.items()]
+
 def get_retriever(model_name="BAAI/bge-m3", index_path="./data/index"):
     embedder = Embedder(model_name)
     store = VectorStore(index_path)

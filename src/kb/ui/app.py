@@ -1,5 +1,10 @@
-import streamlit as st
+import sys
 import os
+
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+import streamlit as st
 import time
 import pandas as pd
 from typing import List
@@ -131,6 +136,68 @@ except Exception as e:
 # --- Main Interface ---
 st.title("📚 本地知识库助手")
 
+# -----------------------------------------------------------------------------
+# Dynamic Sidebar File Filter using Engine
+with st.sidebar:
+    st.markdown("### 📚 知识库范围")
+    
+    selected_files = None # Default to None = All
+    
+    if hasattr(engine.retriever.vector_store, 'get_indexed_files'):
+        files_data = engine.retriever.vector_store.get_indexed_files()
+        # files_data = [{'filename': 'x.pdf', 'chunks': 10}, ...]
+        
+        if files_data:
+            all_filenames = [f['filename'] for f in files_data]
+            
+            # Session State for Persistence
+            if "file_states" not in st.session_state:
+                st.session_state.file_states = {}
+            
+            # Sync: New files default to True
+            for f in all_filenames:
+                if f not in st.session_state.file_states:
+                    st.session_state.file_states[f] = True
+            
+            # Build DataFrame from State
+            df_data = []
+            for f_data in files_data:
+                fname = f_data['filename']
+                is_selected = st.session_state.file_states.get(fname, True)
+                df_data.append({
+                    "启用": is_selected,
+                    "文件名": fname,
+                    "切片": f_data['chunks']
+                })
+            
+            df_filter = pd.DataFrame(df_data)
+            
+            with st.expander(f"选择文件 ({len(all_filenames)})", expanded=False):
+                edited_df = st.data_editor(
+                    df_filter,
+                    column_config={
+                        "启用": st.column_config.CheckboxColumn(required=True),
+                        "文件名": st.column_config.TextColumn(disabled=True),
+                        "切片": st.column_config.NumberColumn(disabled=True)
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    key="file_filter_editor"
+                )
+            
+            # Update State & Get Selected
+            selected_files = []
+            for index, row in edited_df.iterrows():
+                fname = row["文件名"]
+                is_active = row["启用"]
+                st.session_state.file_states[fname] = is_active
+                if is_active:
+                    selected_files.append(fname)
+            
+            st.caption(f"已选 {len(selected_files)} / {len(all_filenames)} 个文档")
+
+# -----------------------------------------------------------------------------
+
 tab1, tab2 = st.tabs(["💬 智能问答", "🗃️ 知识库管理"])
 
 # === TAB 1: CHAT ===
@@ -160,7 +227,7 @@ with tab1:
 
         with st.chat_message("assistant"):
             with st.spinner("正在思考与检索..."):
-                answer, sources = engine.answer(prompt, top_k=top_k, top_n=top_n)
+                answer, sources = engine.answer(prompt, top_k=top_k, top_n=top_n, file_filters=selected_files)
             
             st.markdown(answer)
             
