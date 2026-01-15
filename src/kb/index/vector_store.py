@@ -14,7 +14,7 @@ class Embedder:
         
     def embed_documents(self, documents: List[Document]) -> np.ndarray:
         texts = [doc.content for doc in documents]
-        embeddings = self.model.encode(texts, normalize_embeddings=True)
+        embeddings = self.model.encode(texts, normalize_embeddings=True, show_progress_bar=True)
         return np.array(embeddings)
         
     def embed_query(self, query: str) -> np.ndarray:
