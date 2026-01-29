@@ -6,7 +6,10 @@ from src.kb.schema import Document
 class Reranker:
     """Uses a Cross-Encoder to rerank documents."""
     def __init__(self, model_name: str = "BAAI/bge-reranker-large"):
-        self.model = CrossEncoder(model_name)
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"🔥 Reranker loading on: {device}")
+        self.model = CrossEncoder(model_name, device=device)
         
     def rerank(self, query: str, documents: List[Document], top_n: int = 3) -> List[Document]:
         if not documents:

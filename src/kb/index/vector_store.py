@@ -10,7 +10,10 @@ class Embedder:
     """Handles embedding generation."""
     
     def __init__(self, model_name: str = "BAAI/bge-m3"):
-        self.model = SentenceTransformer(model_name)
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"🔥 Embedder loading on: {device}")
+        self.model = SentenceTransformer(model_name, device=device)
         
     def embed_documents(self, documents: List[Document]) -> np.ndarray:
         texts = [doc.content for doc in documents]
