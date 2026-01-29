@@ -262,6 +262,11 @@ local-kb/
     - Integrate `paddleocr` or `tesseract` to handle image-based PDFs.
     - Add logic to detect "empty text" pages and fallback to OCR.
 
+* **Issue #16: Interactive Citation Tooltips** (Planned)
+    - Implement interactive hover tooltips for citations using CSS Injection.
+    - Reference design: NotebookLM style (hover `[1]` to show source preview card).
+    - Goal: Improve reading experience without scrolling to the bottom.
+
 ---
 
 ## 8️⃣ 成功标准（Definition of Done）
