@@ -8,6 +8,9 @@ import streamlit as st
 import time
 import pandas as pd
 from typing import List
+import threading
+import socket
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from src.kb.rag.answer import AnswerEngine
 from src.kb.schema import Document
 from src.kb.chunking.chunker import Chunker
@@ -37,6 +40,64 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- File Server Initialization ---
+@st.cache_resource
+def start_file_server(start_port=8000, root_directory="./data/raw"):
+    """
+    Starts a background HTTP server to serve files from root_directory.
+    Dynamically finds an available port starting from start_port.
+    """
+    port = start_port
+    # Find available port
+    while port < 65535:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Bind to all interfaces to ensure accessibility
+                s.bind(("0.0.0.0", port))
+            break
+        except OSError:
+            port += 1
+    
+    # Define handler
+    class DataHandler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            # Get absolute path to avoid working directory issues
+            abs_root = os.path.abspath(root_directory)
+            super().__init__(*args, directory=abs_root, **kwargs)
+        
+        def log_message(self, format, *args):
+            # Suppress server logs to keep console clean
+            pass
+    
+    # Start server in daemon thread
+    def run_server():
+        # Listen on all interfaces
+        server = ThreadingHTTPServer(("0.0.0.0", port), DataHandler)
+        server.serve_forever()
+    
+    t = threading.Thread(target=run_server, daemon=True)
+    t.start()
+    
+    print(f"📂 File Server started on port {port}")
+    return port
+
+# Initialize file server
+FILE_SERVER_PORT = start_file_server()
+
+# Determine the correct IP address for the link
+# If running locally, localhost is fine, but for remote access (e.g. --server.address 0.0.0.0), 
+# we need the actual LAN IP.
+try:
+    # Connect to a public DNS to get the most likely LAN IP (doesn't actually send data)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 80))
+        HOST_IP = s.getsockname()[0]
+except Exception:
+    # Fallback if no network
+    HOST_IP = "localhost"
+
+FILE_URL_BASE = f"http://{HOST_IP}:{FILE_SERVER_PORT}"
+print(f"🔗 File Links will use: {FILE_URL_BASE}")
 # --- Helpers ---
 
 LOADERS = {
@@ -116,7 +177,7 @@ with st.sidebar:
     
     st.markdown("### 检索参数")
     top_k = st.slider("初筛数量 (Recall Top-K)", 5, 50, 20)
-    top_n = st.slider("精排数量 (Rerank Top-N)", 1, 10, 3)
+    top_n = st.slider("精排数量 (Rerank Top-N)", 1, 20, 3)
     
     st.markdown("---")
     if st.button("清空对话记录", type="primary"):
@@ -181,7 +242,7 @@ with st.sidebar:
                         "切片": st.column_config.NumberColumn(disabled=True)
                     },
                     hide_index=True,
-                    use_container_width=True,
+                    width='stretch',
                     key="file_filter_editor"
                 )
             
@@ -216,7 +277,16 @@ with tab1:
                         source = os.path.basename(doc.metadata.get("source", "未知来源"))
                         page = doc.metadata.get("page_number", "-")
                         score = doc.metadata.get("rerank_score", 0.0)
-                        st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        
+                        # Build clickable link
+                        from urllib.parse import quote
+                        encoded_filename = quote(source)
+                        if page != "-" and source.lower().endswith('.pdf'):
+                            file_link = f"{FILE_URL_BASE}/{encoded_filename}#page={page}"
+                            st.markdown(f"**{i}. [📄 {source}]({file_link})** (页码: {page}, 相关度: {score:.4f})", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        
                         st.caption(doc.content[:300] + "...")
 
     # Chat Input
@@ -237,7 +307,16 @@ with tab1:
                         source = os.path.basename(doc.metadata.get("source", "未知来源"))
                         page = doc.metadata.get("page_number", "-")
                         score = doc.metadata.get("rerank_score", 0.0)
-                        st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        
+                        # Build clickable link
+                        from urllib.parse import quote
+                        encoded_filename = quote(source)
+                        if page != "-" and source.lower().endswith('.pdf'):
+                            file_link = f"{FILE_URL_BASE}/{encoded_filename}#page={page}"
+                            st.markdown(f"**{i}. [📄 {source}]({file_link})** (页码: {page}, 相关度: {score:.4f})", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"**{i}. {source}** (页码: {page}, 相关度: {score:.4f})")
+                        
                         st.caption(doc.content)
             
             st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
@@ -255,7 +334,7 @@ with tab2:
             files_data = engine.retriever.vector_store.get_indexed_files()
             if files_data:
                 df = pd.DataFrame(files_data).rename(columns={"filename": "文件名", "chunks": "切片数量"})
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width='stretch')
                 st.caption(f"当前总文档数: {len(df)}")
             else:
                 st.info("暂无已索引的文档。")
